@@ -63,16 +63,22 @@ let getUser email =
         return v
     }
 
-type UpdateField = { run: bool; ``val``: obj }
-type UpdateData = { id: int; updates: UpdateField list }
+type UpdateField<'a> = { run: bool; ``val``: 'a }
+type Updates = {
+    disable: UpdateField<bool> option
+    uuid: UpdateField<string> option
+    remark: UpdateField<string> option
+}
+type UpdateData = { id: int; update: Updates }
 
 let updateUser id updates =
     async {
-        let data = { id = id; updates = updates }
+        let data = { id = id; update = updates }
         let data = Encode.Auto.toString (0, data)
 
         let! res =
             makeRequest ("/update")
+            |> Http.method POST
             |> Http.header (Headers.contentType "application/json")
             |> Http.content (BodyContent.Text data)
             |> Http.send
@@ -85,7 +91,7 @@ let updateUser id updates =
 
                 match result with
                 | Ok v ->
-                    match v.message with
+                    match v.data with
                     | Some user -> Success user
                     | None -> Failure v.error.Value
                 | Error e -> Failure e
@@ -134,8 +140,7 @@ let verify () =
                     Decode.Auto.fromString<Response<string>> (res.responseText)
 
                 match result with
-                | Ok v ->
-                    Success ""
+                | Ok v -> Success ""
                 | Error e -> Failure e
             | _ -> Failure res.responseText
 

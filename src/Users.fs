@@ -13,6 +13,7 @@ type State = {
 
 type Msg =
     | SetUsers of RemoteData<string, list<User>>
+    | SetUser of User
     | Reload
 
 let init() =
@@ -21,6 +22,12 @@ let init() =
 let update (msg: Msg) (state: State) =
     match msg with
     | SetUsers users -> { state with Users = users }, Cmd.none
+    | SetUser user ->
+        match state.Users with
+        | Success users ->
+            let users = users |> List.map (fun u -> if u.ID = user.ID then user else u )
+            { state with Users = Success users}, Cmd.none
+        | _ -> state, Cmd.none
     | Reload ->
         state, Cmd.OfAsync.perform getUsers () SetUsers
 
@@ -30,11 +37,31 @@ type DisableUserProps = {
 }
 let renderDisableBtn = React.functionComponent(fun (props: DisableUserProps) ->
     let (inProgress, setInProgress) = React.useState(false)
+    let toggle =
+        React.useCallback(
+            fun (disableStatus:bool)->
+                async {
+                    setInProgress true
+                    let updates = {
+                        disable = Some({ run = true; ``val`` = disableStatus; })
+                        uuid = None
+                        remark = None
+                    }
+                    let! res = updateUser props.User.ID updates
+                    match res with
+                    | Success user -> props.Dispatch (SetUser user)
+                    | _ -> ()
+                    setInProgress false
+                    ()
+                } |> Async.StartImmediate
+                ()
+            , [|props.User.ID|]
+        )
     let title =
         match (inProgress, props.User.disabled) with
         | (true, _) -> "正在修改中"
-        | (_, true) -> "点击禁用"
-        | (_, false) -> "点击解除禁用"
+        | (_, true) -> "点击激活"
+        | (_, false) -> "点击禁用"
     Mui.tooltip [
         tooltip.title title
         tooltip.children (
@@ -43,7 +70,7 @@ let renderDisableBtn = React.functionComponent(fun (props: DisableUserProps) ->
                     checkbox.checked' (not props.User.disabled)
                     checkbox.color.primary
                     checkbox.disabled inProgress
-                    prop.onClick (fun _->props.Dispatch Reload)
+                    prop.onClick (fun _->toggle (not props.User.disabled))
                 ]
             ]
         )
@@ -55,6 +82,7 @@ let renderRow (user: User) (dispatch: Msg -> unit) =
         prop.key user.ID
         prop.children [
             Mui.tableCell user.email
+            Mui.tableCell user.remark
             Mui.tableCell [ Html.code user.uuid ]
             Mui.tableCell [
                 renderDisableBtn ({ User = user; Dispatch = dispatch })
@@ -80,6 +108,7 @@ let render (state: State) (dispatch: Msg -> unit) =
             Mui.tableHead [
                 Mui.tableRow [
                     Mui.tableCell "邮箱"
+                    Mui.tableCell "备注"
                     Mui.tableCell "UUID"
                     Mui.tableCell "状态"
                     Mui.tableCell "操作"
