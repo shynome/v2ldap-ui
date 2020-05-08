@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>netcoreapp3.0</TargetFramework>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Include="Shared/Types.fs" />
+        <Compile Include="Shared/Msg.fs" />
+        <Compile Include="Shared/Token.fs" />
+        <Compile Include="Shared/Api.fs" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="Login.fs" />
+        <Compile Include="Users.fs" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="App.fs" />
+        <Compile Include="Main.fs" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Fable.Elmish.Debugger" Version="3.0.3" />
+        <PackageReference Include="Fable.Elmish.HMR" Version="4.0.1" />
+        <PackageReference Include="Fable.Elmish.React" Version="3.0.1" />
+        <PackageReference Include="Feliz" Version="0.83.0" />
+        <PackageReference Include="Fable.RemoteData" Version="1.0.2"/>
+        <PackageReference Include="Fable.SimpleHttp" Version="3.0.0"/>
+        <PackageReference Include="Thoth.Json" Version="4.0.0"/>
+        <PackageReference Include="Feliz.MaterialUI" Version="0.15.0" />
+        <PackageReference Include="Zanaptak.TypedCssClasses" Version="0.2.0" />
+    </ItemGroup>
+</Project>
