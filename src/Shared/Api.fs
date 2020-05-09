@@ -146,3 +146,24 @@ let verify () =
 
         return v
     }
+
+type LinkConfig = {
+    ws_url: string
+}
+let getLinkConfig () =
+    async {
+        let! res = makeRequest ("/link_config") |> Http.send
+
+        let v =
+            match res.statusCode with
+            | 200 ->
+                let result =
+                    Decode.Auto.fromString<Response<LinkConfig>> (res.responseText)
+
+                match result with
+                | Ok v -> Success v.data.Value
+                | Error e -> Failure e
+            | _ -> Failure res.responseText
+
+        return v
+    }

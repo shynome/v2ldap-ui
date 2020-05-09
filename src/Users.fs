@@ -3,21 +3,28 @@ module Users
 open Feliz
 open Elmish
 open Feliz.MaterialUI
+open Fable.MaterialUI.Icons
 open Shared.Types
 open Shared.Api
 open Fable.RemoteData
+open Components
 
 type State = {
     Users: RemoteData<string, list<User>>
+    QRCode: User option
+    LinkConfig: RemoteData<string,LinkConfig>
 }
 
 type Msg =
     | SetUsers of RemoteData<string, list<User>>
     | SetUser of User
+    | SetQRCode of User option
+    | GetLinkConfig
+    | SetLinkConfig of RemoteData<string,LinkConfig>
     | Reload
 
 let init() =
-    { Users = NotAsked; }, Cmd.none
+    { Users = NotAsked; QRCode = None; LinkConfig = NotAsked }, Cmd.none
 
 let update (msg: Msg) (state: State) =
     match msg with
@@ -28,8 +35,22 @@ let update (msg: Msg) (state: State) =
             let users = users |> List.map (fun u -> if u.ID = user.ID then user else u )
             { state with Users = Success users}, Cmd.none
         | _ -> state, Cmd.none
+    | SetQRCode u ->
+        { state with QRCode = u }, Cmd.none
     | Reload ->
-        state, Cmd.OfAsync.perform getUsers () SetUsers
+        let loadLinkConfigCmd =
+            match state.LinkConfig with
+            | NotAsked | Failure -> Cmd.ofMsg GetLinkConfig
+            | _ -> Cmd.none
+        state, Cmd.batch [
+            Cmd.OfAsync.perform getUsers () SetUsers
+            loadLinkConfigCmd
+        ]
+    | GetLinkConfig ->
+        state, Cmd.OfAsync.perform getLinkConfig () SetLinkConfig
+    | SetLinkConfig config ->
+        {state with LinkConfig = config}, Cmd.none
+
 
 type DisableUserProps = {
     User: User
@@ -164,6 +185,71 @@ let renderRemark = React.functionComponent(fun (props: RemarkUserProps) ->
 
 )
 
+type QRDialogProps = {
+    State: State
+    Dispatch: Msg->unit
+}
+let renderQRDialog = React.functionComponent(fun (props: QRDialogProps) ->
+    let (vs, setVs) = React.useState("")
+    React.useEffect((fun _->
+        match props.State.QRCode with
+        | None -> ()
+        | Some u ->
+            let ws_url =
+                match props.State.LinkConfig with
+                | Success config -> config.ws_url
+                | _ -> ""
+            let s = V2rayN.toString ws_url u.ID u.uuid
+            setVs(s)
+        ()
+    ))
+    Mui.dialog [
+        dialog.open' (props.State.QRCode <> None)
+        dialog.onClose (fun _ -> SetQRCode None |> props.Dispatch)
+        prop.children [
+            Mui.dialogTitle [
+                Html.text "ssss"
+            ]
+            Mui.dialogContent [
+                QRCode ({
+                    value = vs
+                    size = 300
+                    renderAs = "canvas"
+                })
+            ]
+            Mui.dialogActions [
+                CopyToClipboard [
+                    CopyToClipboardProps.text vs
+                    prop.children (
+                        Mui.button [
+                            prop.text "复制"
+                        ]
+                    )
+                ]
+                Mui.button [
+                    prop.onClick (fun _ -> SetQRCode None |> props.Dispatch)
+                    prop.text "关闭"
+                ]
+            ]
+        ]
+    ]
+)
+
+type UUIDProps = {
+    User: User
+    Dispatch: Msg -> unit
+}
+let renderUUID = React.functionComponent(fun (props: UUIDProps) ->
+    let user = props.User
+    React.fragment [
+        Html.code user.uuid
+        Mui.iconButton [
+            prop.onClick (fun _->SetQRCode(Some(user)) |> props.Dispatch)
+            prop.children (centerFocusWeakIcon [])
+        ]
+    ]
+)
+
 let renderRow (user: User) (dispatch: Msg -> unit) =
     Mui.tableRow [
         prop.key user.ID
@@ -171,7 +257,7 @@ let renderRow (user: User) (dispatch: Msg -> unit) =
             Mui.tableCell [ prop.text user.ID ]
             Mui.tableCell user.email
             Mui.tableCell [ renderRemark ({ User = user; Dispatch = dispatch }) ]
-            Mui.tableCell [ Html.code user.uuid ]
+            Mui.tableCell [ renderUUID ({ User = user; Dispatch = dispatch }) ]
             Mui.tableCell [ renderDisableBtn ({ User = user; Dispatch = dispatch }) ]
             Mui.tableCell "todo"
         ]
@@ -190,16 +276,19 @@ let render (state: State) (dispatch: Msg -> unit) =
             ]
         ]
     | Success users ->
-        Mui.table [
-            Mui.tableHead [
-                Mui.tableRow [
-                    Mui.tableCell "ID"
-                    Mui.tableCell "邮箱"
-                    Mui.tableCell "备注"
-                    Mui.tableCell "UUID"
-                    Mui.tableCell "状态"
-                    Mui.tableCell "操作"
+        React.fragment [
+            renderQRDialog ({ State = state; Dispatch = dispatch })
+            Mui.table [
+                Mui.tableHead [
+                    Mui.tableRow [
+                        Mui.tableCell "ID"
+                        Mui.tableCell "邮箱"
+                        Mui.tableCell "备注"
+                        Mui.tableCell "UUID"
+                        Mui.tableCell "状态"
+                        Mui.tableCell "操作"
+                    ]
                 ]
+                Mui.tableBody (users |> List.map (fun u -> renderRow u dispatch))
             ]
-            Mui.tableBody (users |> List.map (fun u -> renderRow u dispatch))
         ]
