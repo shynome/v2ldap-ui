@@ -13,18 +13,21 @@ type State = {
     Users: RemoteData<string, list<User>>
     QRCode: User option
     LinkConfig: RemoteData<string,LinkConfig>
+    ShowAddUser: bool
 }
 
 type Msg =
     | SetUsers of RemoteData<string, list<User>>
     | SetUser of User
+    | AppendUser of User
     | SetQRCode of User option
     | GetLinkConfig
     | SetLinkConfig of RemoteData<string,LinkConfig>
+    | SetShowAddUser of bool
     | Reload
 
 let init() =
-    { Users = NotAsked; QRCode = None; LinkConfig = NotAsked }, Cmd.none
+    { Users = NotAsked; QRCode = None; LinkConfig = NotAsked;ShowAddUser = false; }, Cmd.none
 
 let update (msg: Msg) (state: State) =
     match msg with
@@ -34,6 +37,12 @@ let update (msg: Msg) (state: State) =
         | Success users ->
             let users = users |> List.map (fun u -> if u.ID = user.ID then user else u )
             { state with Users = Success users}, Cmd.none
+        | _ -> state, Cmd.none
+    | AppendUser user ->
+        match state.Users with
+        | Success users ->
+            let users = List.append users [user]
+            { state with Users = Success users}, Cmd.ofMsg (SetShowAddUser false)
         | _ -> state, Cmd.none
     | SetQRCode u ->
         { state with QRCode = u }, Cmd.none
@@ -50,7 +59,8 @@ let update (msg: Msg) (state: State) =
         state, Cmd.OfAsync.perform getLinkConfig () SetLinkConfig
     | SetLinkConfig config ->
         {state with LinkConfig = config}, Cmd.none
-
+    | SetShowAddUser show ->
+        {state with ShowAddUser = show}, Cmd.none
 
 type DisableUserProps = {
     User: User
@@ -208,7 +218,7 @@ let renderQRDialog = React.functionComponent(fun (props: QRDialogProps) ->
         dialog.onClose (fun _ -> SetQRCode None |> props.Dispatch)
         prop.children [
             Mui.dialogTitle [
-                Html.text "ssss"
+                Html.text "使用 V2rayN 扫描"
             ]
             Mui.dialogContent [
                 QRCode ({
@@ -263,6 +273,72 @@ let renderRow (user: User) (dispatch: Msg -> unit) =
         ]
     ]
 
+type AddUserProps = {
+    State: State
+    Dispatch: Msg->unit
+}
+let renderAddUser = React.functionComponent(fun (props:AddUserProps)->
+    let (email, setEmail) = React.useState("")
+    let (inProgress, setInProgress) = React.useState(false)
+    let dispatch = props.Dispatch
+    let add () =
+        async {
+            if email = "" then return ()
+            setInProgress true
+            let! res = addUser email
+            match res with
+            | Success user ->
+                AppendUser user |> dispatch
+            | Failure e ->
+                System.Console.WriteLine e
+            | _ -> ()
+            setInProgress false
+            ()
+        } |> Async.StartImmediate
+        ()
+    Mui.dialog [
+        dialog.open' props.State.ShowAddUser
+        dialog.fullWidth true
+        dialog.maxWidth.xs
+        dialog.onClose (fun _-> if not inProgress then SetShowAddUser false |> dispatch)
+        prop.children [
+            Html.form [
+                prop.onSubmit (fun e->e.preventDefault();add())
+                prop.children [
+                    Mui.dialogTitle [ Html.text "添加用户" ]
+                    Mui.dialogContent [
+                        Mui.textField [
+                            textField.fullWidth true
+                            textField.label "邮箱"
+                            textField.variant.outlined
+                            textField.required true
+                            textField.value email
+                            textField.onChange setEmail
+                            textField.autoFocus true
+                            textField.disabled inProgress
+                            // input.type' "email"
+                        ]
+                    ]
+                    Mui.dialogActions [
+                        Mui.button [
+                            button.disabled inProgress
+                            prop.text "取消"
+                            prop.onClick (fun _ -> SetShowAddUser false |> dispatch)
+                        ]
+                        Mui.button [
+                            button.disabled (inProgress || email = "")
+                            prop.text "添加用户"
+                            button.color.primary
+                            button.variant.contained
+                            button.type'.submit
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+)
+
 let render (state: State) (dispatch: Msg -> unit) =
     match state.Users with
     | Loading -> Mui.linearProgress []
@@ -278,6 +354,13 @@ let render (state: State) (dispatch: Msg -> unit) =
     | Success users ->
         React.fragment [
             renderQRDialog ({ State = state; Dispatch = dispatch })
+            renderAddUser ({ State = state; Dispatch = dispatch })
+            Mui.buttonGroup [
+                Mui.button [
+                    prop.text "添加用户"
+                    prop.onClick (fun _ -> SetShowAddUser true |> dispatch)
+                ]
+            ]
             Mui.table [
                 Mui.tableHead [
                     Mui.tableRow [

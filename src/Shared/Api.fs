@@ -64,11 +64,12 @@ let getUser email =
     }
 
 type UpdateField<'a> = { run: bool; ``val``: 'a }
-type Updates = {
-    disable: UpdateField<bool> option
-    uuid: UpdateField<string> option
-    remark: UpdateField<string> option
-}
+
+type Updates =
+    { disable: UpdateField<bool> option
+      uuid: UpdateField<string> option
+      remark: UpdateField<string> option }
+
 type UpdateData = { id: int; update: Updates }
 
 let updateUser id updates =
@@ -78,6 +79,37 @@ let updateUser id updates =
 
         let! res =
             makeRequest ("/update")
+            |> Http.method POST
+            |> Http.header (Headers.contentType "application/json")
+            |> Http.content (BodyContent.Text data)
+            |> Http.send
+
+        let v =
+            match res.statusCode with
+            | 200 ->
+                let result =
+                    Decode.Auto.fromString<Response<User>> (res.responseText)
+
+                match result with
+                | Ok v ->
+                    match v.data with
+                    | Some user -> Success user
+                    | None -> Failure v.error.Value
+                | Error e -> Failure e
+            | _ -> Failure res.responseText
+
+        return v
+    }
+
+type AddUserData = { Email: string }
+
+let addUser email =
+    async {
+        let data = { Email = email }
+        let data = Encode.Auto.toString (0, data)
+
+        let! res =
+            makeRequest ("/add")
             |> Http.method POST
             |> Http.header (Headers.contentType "application/json")
             |> Http.content (BodyContent.Text data)
@@ -147,9 +179,8 @@ let verify () =
         return v
     }
 
-type LinkConfig = {
-    ws_url: string
-}
+type LinkConfig = { ws_url: string }
+
 let getLinkConfig () =
     async {
         let! res = makeRequest ("/link_config") |> Http.send
