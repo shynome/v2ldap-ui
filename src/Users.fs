@@ -77,16 +77,94 @@ let renderDisableBtn = React.functionComponent(fun (props: DisableUserProps) ->
     ]
 )
 
+type RemarkUserProps = {
+    User: User
+    Dispatch: Msg->unit
+}
+let renderRemark = React.functionComponent(fun (props: RemarkUserProps) ->
+    let (inProgress, setInProgress) = React.useState(false)
+    let (isEdit,setEdit) = React.useState(false)
+    let (val', setVal) = React.useState(props.User.remark)
+    let save = fun ()->
+        async {
+            setInProgress true
+            let updates = {
+                disable = None
+                uuid = None
+                remark = Some({ run = true; ``val`` = val'; })
+            }
+            let! res = updateUser props.User.ID updates
+            match res with
+            | Success user -> props.Dispatch (SetUser user)
+            | _ -> ()
+            setInProgress false
+            setEdit false
+            ()
+        } |> Async.StartImmediate
+        ()
+    match (isEdit, val') with
+    | (true, val') ->
+        Html.form [
+            prop.onSubmit (fun e->e.preventDefault();save())
+            prop.children [
+                Mui.input [
+                    input.value val'
+                    input.onChange setVal
+                    input.disabled inProgress
+                    input.endAdornment (
+                        Mui.buttonGroup [
+                            prop.style [
+                                style.wordBreak.keepAll
+                            ]
+                            buttonGroup.variant.text
+                            buttonGroup.disabled inProgress
+                            prop.children [
+                                Mui.button [
+                                    prop.text "保存"
+                                    button.type'.submit
+                                ]
+                                Mui.button [
+                                    prop.text "取消"
+                                    prop.onClick (fun _->
+                                        setEdit false
+                                        setVal props.User.remark
+                                    )
+                                ]
+                            ]
+                        ]
+                    )
+                ]
+            ]
+        ]
+    | (_,"") ->
+        Mui.button [
+            prop.text "添加备注"
+            prop.onClick (fun _->setEdit(true))
+        ]
+    | (false, val') ->
+        Mui.tooltip [
+            tooltip.title "点击编辑"
+            tooltip.children (
+                Mui.button [
+                    prop.text val'
+                    prop.style [
+                        style.textTransform.none
+                    ]
+                    prop.onClick (fun _->setEdit true)
+                ]
+            )
+        ]
+
+)
+
 let renderRow (user: User) (dispatch: Msg -> unit) =
     Mui.tableRow [
         prop.key user.ID
         prop.children [
             Mui.tableCell user.email
-            Mui.tableCell user.remark
+            Mui.tableCell [ renderRemark ({ User = user; Dispatch = dispatch }) ]
             Mui.tableCell [ Html.code user.uuid ]
-            Mui.tableCell [
-                renderDisableBtn ({ User = user; Dispatch = dispatch })
-            ]
+            Mui.tableCell [ renderDisableBtn ({ User = user; Dispatch = dispatch }) ]
             Mui.tableCell "todo"
         ]
     ]
