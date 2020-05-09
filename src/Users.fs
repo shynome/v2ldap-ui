@@ -87,6 +87,7 @@ let renderRemark = React.functionComponent(fun (props: RemarkUserProps) ->
     let (val', setVal) = React.useState(props.User.remark)
     let save = fun ()->
         async {
+            if val' = "" then return ()
             setInProgress true
             let updates = {
                 disable = None
@@ -111,6 +112,7 @@ let renderRemark = React.functionComponent(fun (props: RemarkUserProps) ->
                     input.value val'
                     input.onChange setVal
                     input.disabled inProgress
+                    input.autoFocus true
                     input.endAdornment (
                         Mui.buttonGroup [
                             prop.style [
@@ -137,9 +139,14 @@ let renderRemark = React.functionComponent(fun (props: RemarkUserProps) ->
             ]
         ]
     | (_,"") ->
-        Mui.button [
-            prop.text "添加备注"
-            prop.onClick (fun _->setEdit(true))
+        Mui.tooltip [
+            tooltip.title "点击添加备注"
+            tooltip.children (
+                Mui.button [
+                    prop.text "添加备注"
+                    prop.onClick (fun _->setEdit(true))
+                ]
+            )
         ]
     | (false, val') ->
         Mui.tooltip [
@@ -161,6 +168,7 @@ let renderRow (user: User) (dispatch: Msg -> unit) =
     Mui.tableRow [
         prop.key user.ID
         prop.children [
+            Mui.tableCell [ prop.text user.ID ]
             Mui.tableCell user.email
             Mui.tableCell [ renderRemark ({ User = user; Dispatch = dispatch }) ]
             Mui.tableCell [ Html.code user.uuid ]
@@ -185,6 +193,7 @@ let render (state: State) (dispatch: Msg -> unit) =
         Mui.table [
             Mui.tableHead [
                 Mui.tableRow [
+                    Mui.tableCell "ID"
                     Mui.tableCell "邮箱"
                     Mui.tableCell "备注"
                     Mui.tableCell "UUID"
